@@ -14,6 +14,7 @@ import android.os.IBinder;
 import android.os.Message;
 import android.telephony.SmsManager;
 import android.util.Log;
+import android.net.wifi.WifiManager;
 
 public class LocationResponderService extends Service {
     private static final String TAG = "LocationResponderService";
@@ -22,35 +23,42 @@ public class LocationResponderService extends Service {
     private final class ServiceHandler extends Handler {
         private LocationManager lm = null;
         private LocationListener ll = null;
-        public ServiceHandler(Looper l_, LocationManager lm) {
+        private WifiManager wm = null;
+        private String dest = null;
+        public ServiceHandler(Looper l_, LocationManager lm, WifiManager wm) {
             super(l_);
             this.lm = lm;
-        }
-        public void handleMessage(Message m) {
-            final String dest = (String) m.obj;
-            Log.i(TAG, "Received locate request for " + dest);
-            SmsManager.getDefault().sendTextMessage(dest, null, "Received locate request", null, null);
-
-            ll = new LocationListener() {
+            this.ll = new LocationListener() {
                     public void onLocationChanged(Location location) {
-                        sendLocation(dest, location);
+                        sendLocation(location);
                     }
                     public void onStatusChanged(String provider, int status, Bundle extras) {}
                     public void onProviderEnabled(String provider) {}
                     public void onProviderDisabled(String provider) {}
                 };
-            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, ll);
-            lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, ll);
+            this.wm = wm;
         }
-        private void sendLocation(String dest, Location l) {
-            String loc = String.format("%f, %f", l.getLatitude(), l.getLongitude());
+        public void handleMessage(Message m) {
+            dest = (String) m.obj;
+            if (m.arg1 == 1) {
+                Log.i(TAG, "Received subscribe request for " + dest);
+                SmsManager.getDefault().sendTextMessage(dest, null, "Starting location updates", null, null);
+                wm.setWifiEnabled(true);
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, ll);
+                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, ll);
+            } else {
+                Log.i(TAG, "Received unsubscribe request for " + dest);
+                lm.removeUpdates(ll);
+                wm.setWifiEnabled(false);
+                SmsManager.getDefault().sendTextMessage(dest, null, "Stopped location updates", null, null);
+            }
+        }
+        private void sendLocation(Location l) {
+            String loc = String.format("%s: %f, %f", l.getProvider(), l.getLatitude(), l.getLongitude());
             if (l.hasAccuracy()) {
                 loc += " +- " + l.getAccuracy();
             }
             Log.i(TAG, "Sending location " + loc + " to " + dest);
-            // if (lm != null && ll != null) {
-            //     lm.removeUpdates(ll);
-            // }
             SmsManager.getDefault().sendTextMessage(dest, null, loc, null, null);
         }
     }
@@ -60,12 +68,14 @@ public class LocationResponderService extends Service {
         thread.start();
         s = new ServiceHandler(
             thread.getLooper(),
-            (LocationManager) this.getSystemService(Context.LOCATION_SERVICE));
+            (LocationManager) this.getSystemService(Context.LOCATION_SERVICE),
+            (WifiManager) this.getSystemService(Context.WIFI_SERVICE));
     }
 
     public int onStartCommand(Intent intent, int flags, int startId) {
         Message msg = s.obtainMessage();
         msg.obj = intent.getStringExtra("dest");
+        msg.arg1 = intent.getBooleanExtra("subscribe", false) ? 1 : 0;
         s.sendMessage(msg);
         return START_REDELIVER_INTENT;
     }

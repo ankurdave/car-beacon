@@ -12,10 +12,17 @@ public class LocationRequestMessageReceiver extends BroadcastReceiver {
         Object[] pdus = (Object[]) intent.getExtras().get("pdus");
         for (int i = 0; i < pdus.length; i++) {
             SmsMessage m = SmsMessage.createFromPdu((byte[]) pdus[i]);
-            if (m.getMessageBody().equalsIgnoreCase("locate")) {
-                Log.i(TAG, "Got locate request: " + m.getMessageBody());
+            if (m.getMessageBody().trim().equalsIgnoreCase("start")) {
+                Log.i(TAG, "Got subscribe request: " + m.getMessageBody());
                 Intent in = new Intent(context.getApplicationContext(), LocationResponderService.class);
                 in.putExtra("dest", m.getOriginatingAddress());
+                in.putExtra("subscribe", true);
+                context.getApplicationContext().startService(in);
+            } else if (m.getMessageBody().trim().equalsIgnoreCase("stop")) {
+                Log.i(TAG, "Got unsubscribe request: " + m.getMessageBody());
+                Intent in = new Intent(context.getApplicationContext(), LocationResponderService.class);
+                in.putExtra("dest", m.getOriginatingAddress());
+                in.putExtra("subscribe", false);
                 context.getApplicationContext().startService(in);
             }
         }
