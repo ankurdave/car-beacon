@@ -25,6 +25,8 @@ public class LocationResponderService extends Service {
         private LocationListener ll = null;
         private WifiManager wm = null;
         private String dest = null;
+        private boolean subscribe = false;
+        private boolean test = false;
         public ServiceHandler(Looper l_, LocationManager lm, WifiManager wm) {
             super(l_);
             this.lm = lm;
@@ -40,17 +42,20 @@ public class LocationResponderService extends Service {
         }
         public void handleMessage(Message m) {
             dest = (String) m.obj;
-            if (m.arg1 == 1) {
-                Log.i(TAG, "Received subscribe request for " + dest);
-                SmsManager.getDefault().sendTextMessage(dest, null, "Starting location updates", null, null);
-                wm.setWifiEnabled(true);
-                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, ll);
-                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0, 0, ll);
+            subscribe = m.arg1 == 1;
+            test = m.arg2 == 1;
+
+            String confirmation = String.format("%s location updates", subscribe ? "Starting" : "Stopping");
+            Log.i(TAG, confirmation + " for " + dest);
+            if (!test) {
+                SmsManager.getDefault().sendTextMessage(dest, null, confirmation, null, null);
+            }
+
+            if (subscribe) {
+                lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 60000, 0, ll);
+                lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 60000, 0, ll);
             } else {
-                Log.i(TAG, "Received unsubscribe request for " + dest);
                 lm.removeUpdates(ll);
-                wm.setWifiEnabled(false);
-                SmsManager.getDefault().sendTextMessage(dest, null, "Stopped location updates", null, null);
             }
         }
         private void sendLocation(Location l) {
@@ -59,7 +64,9 @@ public class LocationResponderService extends Service {
                 loc += " +- " + l.getAccuracy();
             }
             Log.i(TAG, "Sending location " + loc + " to " + dest);
-            SmsManager.getDefault().sendTextMessage(dest, null, loc, null, null);
+            if (!test) {
+                SmsManager.getDefault().sendTextMessage(dest, null, loc, null, null);
+            }
         }
     }
 
@@ -76,6 +83,7 @@ public class LocationResponderService extends Service {
         Message msg = s.obtainMessage();
         msg.obj = intent.getStringExtra("dest");
         msg.arg1 = intent.getBooleanExtra("subscribe", false) ? 1 : 0;
+        msg.arg2 = intent.getBooleanExtra("test", false) ? 1 : 0;
         s.sendMessage(msg);
         return START_REDELIVER_INTENT;
     }
