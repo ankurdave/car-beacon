@@ -12,8 +12,6 @@ import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
-import android.os.PowerManager.WakeLock;
-import android.os.PowerManager;
 import android.telephony.SmsManager;
 import android.util.Log;
 
@@ -24,12 +22,10 @@ public class LocationResponderService extends Service {
     private final class ServiceHandler extends Handler {
         private LocationManager lm = null;
         private LocationListener ll = null;
-        private PowerManager pm = null;
-        private WakeLock wl = null;
         private String dest = null;
         private boolean subscribe = false;
         private boolean test = false;
-        public ServiceHandler(Looper l_, LocationManager lm, PowerManager pm) {
+        public ServiceHandler(Looper l_, LocationManager lm) {
             super(l_);
             this.lm = lm;
             this.ll = new LocationListener() {
@@ -40,7 +36,6 @@ public class LocationResponderService extends Service {
                     public void onProviderEnabled(String provider) {}
                     public void onProviderDisabled(String provider) {}
                 };
-            this.pm = pm;
         }
         public void handleMessage(Message m) {
             dest = (String) m.obj;
@@ -54,16 +49,9 @@ public class LocationResponderService extends Service {
             }
 
             if (subscribe) {
-                if (wl == null) {
-                    wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG);
-                }
-                wl.acquire();
                 lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 300000, 0, ll);
                 lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 300000, 0, ll);
             } else {
-                if (wl != null) {
-                    wl.release();
-                }
                 lm.removeUpdates(ll);
             }
         }
@@ -84,8 +72,7 @@ public class LocationResponderService extends Service {
         thread.start();
         s = new ServiceHandler(
             thread.getLooper(),
-            (LocationManager) this.getSystemService(Context.LOCATION_SERVICE),
-            (PowerManager) this.getSystemService(Context.POWER_SERVICE));
+            (LocationManager) this.getSystemService(Context.LOCATION_SERVICE));
     }
 
     public int onStartCommand(Intent intent, int flags, int startId) {
