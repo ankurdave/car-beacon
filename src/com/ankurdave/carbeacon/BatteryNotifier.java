@@ -8,6 +8,6 @@ import android.telephony.SmsManager;
 public class BatteryNotifier extends BroadcastReceiver {
     private static final String TAG = "BatteryNotifier";
     public void onReceive(Context context, Intent intent) {
-      SmsManager.getDefault().sendTextMessage("5556", null, "Low battery", null, null);
+      SmsManager.getDefault().sendTextMessage("6507017705", null, "Low battery", null, null);
     }
 }
